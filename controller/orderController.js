@@ -9,7 +9,7 @@ const Notification = require("../model/notificationModel");
 const User = require("../model/customerModel");
 const Referral = require("../model/referalModel");
 const GullakHistory = require("../model/GullakHistoryModel");
-
+const crypto = require("crypto");
 // Razorpay instance
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY || "rzp_live_D3D9CzhhPmwAZe",
@@ -314,181 +314,401 @@ exports.buyFromCartAndPaySellerold = catchAsyncError(async (req, res) => {
   });
 });
 
+// exports.buyFromCartAndPaySeller = catchAsyncError(async (req, res) => {
+//   const userId = req.customer.id;
+//   const { deliveryType, paymentMethod, useGullak = false } = req.body;
+
+//   // ✅ Step 1: Get cart
+//   const cart = await Cart.findOne({ userId }).populate("items.productId");
+//   if (!cart || cart.items.length === 0) {
+//     return res.status(400).json({ success: false, message: "Cart is empty" });
+//   }
+
+//   // ✅ Step 2: Prepare items and totals
+//   const items = cart.items.map(i => ({
+//     productId: i.productId._id,
+//     quantity: i.quantity,
+//     price: i.price
+//   }));
+
+//   const itemTotal = items.reduce((sum, i) => sum + i.quantity * i.price, 0);
+//   const convenienceFee = 0;
+//   const platformFee = 0;
+//   const deliveryFee = deliveryType === "HOME_DELIVERY" ? 0 : 0;
+
+//   const customer = await User.findById(userId);
+
+//   // ✅ Step 3: Apply Gullak
+//   let appliedGullak = 0;
+//   if (useGullak && customer.gullakPoints > 0) {
+//     appliedGullak = Math.min(customer.gullakPoints, itemTotal);
+//   }
+
+//   const gullakDiscount = appliedGullak;
+//   const finalAmount = itemTotal + convenienceFee + platformFee + deliveryFee - gullakDiscount;
+
+//   // ✅ Step 4: Get Seller
+//   const sellerId = cart.items[0].productId.createdBy;
+//   const sellerBank = await BankDetails.findOne({ userId: sellerId });
+//   if (!sellerBank) {
+//     return res.status(404).json({ success: false, message: "Seller bank account not found" });
+//   }
+
+//   // ✅ Step 5: Razorpay Payment Link
+//   const link = await razorpay.paymentLink.create({
+//     amount: Math.round(finalAmount * 100),
+//     currency: "INR",
+//     description: `Order payment – ₹${finalAmount}`,
+//     customer: {
+//       name: customer.name,
+//       email: customer.email,
+//       contact: customer.phoneNumber
+//     },
+//     notify: { sms: true, email: true },
+//     callback_url: `http://localhost:5000/api/v1/payment/verify`,
+//     callback_method: "get"
+//   });
+
+//   // ✅ Step 6: Create Order
+//   const totalOrders = await Order.countDocuments();
+//   const orderNumber = `ORD-${String(totalOrders + 1).padStart(6, '0')}`;
+
+//   const order = await Order.create({
+//     userId,
+//     items,
+//     deliveryType,
+//     address: customer.location?.formattedAddress || "",
+//     totalAmount: itemTotal,
+//     convenienceFee,
+//     platformFee,
+//     deliveryFee,
+//     gullakDiscount,
+//     finalAmount,
+//     paymentMethod,
+//     status: "PENDING",
+//     razorpayLinkId: link.id,
+//     razorpayLinkStatus: "created",
+//     sellerBankDetails: {
+//       bankName: sellerBank.bankName,
+//       accountHolderName: sellerBank.accountHolderName,
+//       accountNumber: sellerBank.accountNumber,
+//       ifsc: sellerBank.ifsc,
+//       accountType: sellerBank.accountType
+//     },
+//     orderNumber
+//   });
+
+//   // ✅ Step 7: Clear Cart
+//   cart.items = [];
+//   cart.totalAmount = 0;
+//   await cart.save();
+
+//   // ✅ Step 8: Deduct Gullak Points if used
+//   if (appliedGullak > 0) {
+//     customer.gullakPoints -= appliedGullak;
+//     await GullakHistory.create({
+//       userId: customer._id,
+//       type: "REDEEMED",
+//       coins: appliedGullak,
+//       description: `You redeemed ₹${appliedGullak} gullak coins for your order`,
+//       validTill: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+//     });
+
+//     await Notification.create({
+//       user: customer._id,
+//       userType: "CustomerAuth",
+//       title: "Gullak Coins Redeemed",
+//       message: `₹${appliedGullak} gullak coins redeemed on order ${orderNumber}`,
+//       orderId: order._id,
+//       type: "GULLAK"
+//     });
+//   }
+
+//   // ✅ Step 9: Reward Referrer if first order
+//   if (!customer.hasPlacedFirstOrder && customer.referredBy) {
+//     const referrer = await User.findById(customer.referredBy);
+//     if (referrer) {
+//       referrer.gullakPoints += 50;
+//       await referrer.save();
+
+//       await GullakHistory.create({
+//         userId: referrer._id,
+//         type: "EARNED",
+//         coins: 50,
+//         description: "You got ₹50 worth gullak coins for referring a friend",
+//         validTill: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+//       });
+
+//       await Notification.create({
+//         user: referrer._id,
+//         userType: "CustomerAuth",
+//         title: "Referral Bonus Earned",
+//         message: `You earned ₹50 gullak coins for referring a friend who placed their first order.`,
+//         type: "GULLAK"
+//       });
+//     }
+
+//     customer.hasPlacedFirstOrder = true;
+//   }
+
+//   // ✅ Save customer updates
+//   await customer.save();
+
+//   // ✅ Step 10: Order Notifications
+//   await Notification.create({
+//     user: sellerId,
+//     userType: "UsersAuth",
+//     title: "New Order Received",
+//     message: `You have received a new order (${orderNumber}) from a customer.`,
+//     orderId: order._id,
+//     type: "ORDER"
+//   });
+
+//   await Notification.create({
+//     user: userId,
+//     userType: "CustomerAuth",
+//     title: "Order Placed",
+//     message: `Your order (${orderNumber}) has been placed successfully.`,
+//     orderId: order._id,
+//     type: "ORDER"
+//   });
+
+//   // ✅ Step 11: Response
+//   res.status(200).json({
+//     success: true,
+//     message: "Payment link created successfully",
+//     paymentLink: link.short_url,
+//     razorpayLinkId: link.id,
+//     orderId: order._id,
+//     orderNumber,
+//     sellerBank,
+//     customerLocation: customer.location,
+//     amountToPay: finalAmount,
+//     gullakApplied: appliedGullak
+//   });
+// });
+
 exports.buyFromCartAndPaySeller = catchAsyncError(async (req, res) => {
-  const userId = req.customer.id;
-  const { deliveryType, paymentMethod, useGullak = false } = req.body;
+  try {
+    const userId = req.customer.id;
+    const { deliveryType, paymentMethod, useGullak = false, selectedAddress } = req.body;
 
-  // ✅ Step 1: Get cart
-  const cart = await Cart.findOne({ userId }).populate("items.productId");
-  if (!cart || cart.items.length === 0) {
-    return res.status(400).json({ success: false, message: "Cart is empty" });
-  }
+    const cart = await Cart.findOne({ userId }).populate("items.productId");
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({ success: false, message: "Cart is empty" });
+    }
 
-  // ✅ Step 2: Prepare items and totals
-  const items = cart.items.map(i => ({
-    productId: i.productId._id,
-    quantity: i.quantity,
-    price: i.price
-  }));
+    const items = cart.items.map(i => ({
+      productId: i.productId._id,
+      quantity: i.quantity,
+      price: i.price
+    }));
 
-  const itemTotal = items.reduce((sum, i) => sum + i.quantity * i.price, 0);
-  const convenienceFee = 0;
-  const platformFee = 0;
-  const deliveryFee = deliveryType === "HOME_DELIVERY" ? 0 : 0;
+    const itemTotal = items.reduce((sum, i) => sum + i.quantity * i.price, 0);
+    const convenienceFee = 0;
+    const platformFee = 0;
+    const deliveryFee = deliveryType === "HOME_DELIVERY" ? 0 : 0;
 
-  const customer = await User.findById(userId);
+    const customer = await User.findById(userId);
 
-  // ✅ Step 3: Apply Gullak
-  let appliedGullak = 0;
-  if (useGullak && customer.gullakPoints > 0) {
-    appliedGullak = Math.min(customer.gullakPoints, itemTotal);
-  }
+    let appliedGullak = 0;
+    if (useGullak && customer.gullakPoints > 0) {
+      appliedGullak = Math.min(customer.gullakPoints, itemTotal);
+    }
 
-  const gullakDiscount = appliedGullak;
-  const finalAmount = itemTotal + convenienceFee + platformFee + deliveryFee - gullakDiscount;
+    const gullakDiscount = appliedGullak;
+    const finalAmount = itemTotal + convenienceFee + platformFee + deliveryFee - gullakDiscount;
 
-  // ✅ Step 4: Get Seller
-  const sellerId = cart.items[0].productId.createdBy;
-  const sellerBank = await BankDetails.findOne({ userId: sellerId });
-  if (!sellerBank) {
-    return res.status(404).json({ success: false, message: "Seller bank account not found" });
-  }
+    const sellerId = cart.items[0].productId.createdBy;
+    const sellerBank = await BankDetails.findOne({ userId: sellerId });
+    if (!sellerBank) {
+      return res.status(404).json({ success: false, message: "Seller bank account not found" });
+    }
 
-  // ✅ Step 5: Razorpay Payment Link
-  const link = await razorpay.paymentLink.create({
-    amount: Math.round(finalAmount * 100),
-    currency: "INR",
-    description: `Order payment – ₹${finalAmount}`,
-    customer: {
-      name: customer.name,
-      email: customer.email,
-      contact: customer.phoneNumber
-    },
-    notify: { sms: true, email: true },
-    callback_url: `http://localhost:5000/api/v1/payment/verify`,
-    callback_method: "get"
-  });
+    const finalAddress = selectedAddress || customer.location?.formattedAddress || "";
+    if (!finalAddress) {
+      return res.status(400).json({ success: false, message: "Delivery address not provided" });
+    }
 
-  // ✅ Step 6: Create Order
-  const totalOrders = await Order.countDocuments();
-  const orderNumber = `ORD-${String(totalOrders + 1).padStart(6, '0')}`;
-
-  const order = await Order.create({
-    userId,
-    items,
-    deliveryType,
-    address: customer.location?.formattedAddress || "",
-    totalAmount: itemTotal,
-    convenienceFee,
-    platformFee,
-    deliveryFee,
-    gullakDiscount,
-    finalAmount,
-    paymentMethod,
-    status: "PENDING",
-    razorpayLinkId: link.id,
-    razorpayLinkStatus: "created",
-    sellerBankDetails: {
-      bankName: sellerBank.bankName,
-      accountHolderName: sellerBank.accountHolderName,
-      accountNumber: sellerBank.accountNumber,
-      ifsc: sellerBank.ifsc,
-      accountType: sellerBank.accountType
-    },
-    orderNumber
-  });
-
-  // ✅ Step 7: Clear Cart
-  cart.items = [];
-  cart.totalAmount = 0;
-  await cart.save();
-
-  // ✅ Step 8: Deduct Gullak Points if used
-  if (appliedGullak > 0) {
-    customer.gullakPoints -= appliedGullak;
-    await GullakHistory.create({
-      userId: customer._id,
-      type: "REDEEMED",
-      coins: appliedGullak,
-      description: `You redeemed ₹${appliedGullak} gullak coins for your order`,
-      validTill: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+    const link = await razorpay.paymentLink.create({
+      amount: Math.round(finalAmount * 100),
+      currency: "INR",
+      description: `Order payment – ₹${finalAmount}`,
+      customer: {
+        name: customer.name,
+        email: customer.email,
+        contact: customer.phoneNumber
+      },
+      notify: { sms: true, email: true },
+      callback_url: `http://localhost:5000/api/v1/payment/verify`,
+      callback_method: "get"
     });
 
-    await Notification.create({
-      user: customer._id,
-      userType: "CustomerAuth",
-      title: "Gullak Coins Redeemed",
-      message: `₹${appliedGullak} gullak coins redeemed on order ${orderNumber}`,
-      orderId: order._id,
-      type: "GULLAK"
+    const totalOrders = await Order.countDocuments();
+    const orderNumber = `ORD-${String(totalOrders + 1).padStart(6, '0')}`;
+
+    const order = await Order.create({
+      userId,
+      items,
+      deliveryType,
+      address: finalAddress,
+      totalAmount: itemTotal,
+      convenienceFee,
+      platformFee,
+      deliveryFee,
+      gullakDiscount,
+      finalAmount,
+      paymentMethod,
+      status: "PENDING",
+      paymentStatus: "Pending",
+      razorpayLinkId: link.id,
+      razorpayLinkStatus: "created",
+      sellerBankDetails: {
+        bankName: sellerBank.bankName,
+        accountHolderName: sellerBank.accountHolderName,
+        accountNumber: sellerBank.accountNumber,
+        ifsc: sellerBank.ifsc,
+        accountType: sellerBank.accountType
+      },
+      orderNumber
     });
-  }
 
-  // ✅ Step 9: Reward Referrer if first order
-  if (!customer.hasPlacedFirstOrder && customer.referredBy) {
-    const referrer = await User.findById(customer.referredBy);
-    if (referrer) {
-      referrer.gullakPoints += 50;
-      await referrer.save();
+    cart.items = [];
+    cart.totalAmount = 0;
+    await cart.save();
 
+    if (appliedGullak > 0) {
+      customer.gullakPoints -= appliedGullak;
       await GullakHistory.create({
-        userId: referrer._id,
-        type: "EARNED",
-        coins: 50,
-        description: "You got ₹50 worth gullak coins for referring a friend",
+        userId: customer._id,
+        type: "REDEEMED",
+        coins: appliedGullak,
+        description: `You redeemed ₹${appliedGullak} gullak coins for your order`,
         validTill: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
       });
 
       await Notification.create({
-        user: referrer._id,
+        user: customer._id,
         userType: "CustomerAuth",
-        title: "Referral Bonus Earned",
-        message: `You earned ₹50 gullak coins for referring a friend who placed their first order.`,
+        title: "Gullak Coins Redeemed",
+        message: `₹${appliedGullak} gullak coins redeemed on order ${orderNumber}`,
+        orderId: order._id,
         type: "GULLAK"
       });
     }
 
-    customer.hasPlacedFirstOrder = true;
+    if (!customer.hasPlacedFirstOrder && customer.referredBy) {
+      const referrer = await User.findById(customer.referredBy);
+      if (referrer) {
+        referrer.gullakPoints += 50;
+        await referrer.save();
+
+        await GullakHistory.create({
+          userId: referrer._id,
+          type: "EARNED",
+          coins: 50,
+          description: "You got ₹50 worth gullak coins for referring a friend",
+          validTill: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+        });
+
+        await Notification.create({
+          user: referrer._id,
+          userType: "CustomerAuth",
+          title: "Referral Bonus Earned",
+          message: `You earned ₹50 gullak coins for referring a friend who placed their first order.`,
+          type: "GULLAK"
+        });
+      }
+
+      customer.hasPlacedFirstOrder = true;
+    }
+
+    await customer.save();
+
+    await Notification.create({
+      user: sellerId,
+      userType: "UsersAuth",
+      title: "New Order Received",
+      message: `You have received a new order (${orderNumber}) from a customer.`,
+      orderId: order._id,
+      type: "ORDER"
+    });
+
+    await Notification.create({
+      user: userId,
+      userType: "CustomerAuth",
+      title: "Order Placed",
+      message: `Your order (${orderNumber}) has been placed successfully.`,
+      orderId: order._id,
+      type: "ORDER"
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Payment link created successfully",
+      paymentLink: link.short_url,
+      razorpayLinkId: link.id,
+      orderId: order._id,
+      orderNumber,
+      sellerBank,
+      customerLocation: customer.location,
+      addressUsed: finalAddress,
+      amountToPay: finalAmount,
+      gullakApplied: appliedGullak
+    });
+  } catch (error) {
+    console.log("Error in buyFromCartAndPaySeller:", error);
+    res.status(500).json({ success: false, message: "Something went wrong." });
   }
-
-  // ✅ Save customer updates
-  await customer.save();
-
-  // ✅ Step 10: Order Notifications
-  await Notification.create({
-    user: sellerId,
-    userType: "UsersAuth",
-    title: "New Order Received",
-    message: `You have received a new order (${orderNumber}) from a customer.`,
-    orderId: order._id,
-    type: "ORDER"
-  });
-
-  await Notification.create({
-    user: userId,
-    userType: "CustomerAuth",
-    title: "Order Placed",
-    message: `Your order (${orderNumber}) has been placed successfully.`,
-    orderId: order._id,
-    type: "ORDER"
-  });
-
-  // ✅ Step 11: Response
-  res.status(200).json({
-    success: true,
-    message: "Payment link created successfully",
-    paymentLink: link.short_url,
-    razorpayLinkId: link.id,
-    orderId: order._id,
-    orderNumber,
-    sellerBank,
-    customerLocation: customer.location,
-    amountToPay: finalAmount,
-    gullakApplied: appliedGullak
-  });
 });
 
 
+exports.verifyOnlinePayment = async (req, res) => {
+  try {
+    const {
+      razorpay_payment_link_id,
+      razorpay_payment_id,
+      razorpay_payment_link_status
+    } = req.query;
+
+    const order = await Order.findOne({ razorpayLinkId: razorpay_payment_link_id });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (razorpay_payment_link_status === "paid") {
+      order.paymentStatus = "Success";
+      order.status = "PAID";
+      order.deliveryStatus = "PROCESSING";
+      order.razorpayPaymentId = razorpay_payment_id;
+      order.razorpayLinkStatus = "paid";
+      order.cashReceived = false;
+      await order.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Payment verified and order marked as paid",
+        data: {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          paymentId: razorpay_payment_id
+        }
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: "Payment not completed yet"
+    });
+  } catch (error) {
+    console.error("Payment verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during payment verification"
+    });
+  }
+};
 
 
 exports.getReferralInfok = catchAsyncError(async (req, res) => {
@@ -875,47 +1095,78 @@ exports.cancelOrder = async (req, res) => {
 
 
 
-exports.verifyOnlinePayment = async (req, res) => {
-    try {
-      const { razorpay_payment_id, razorpay_payment_link_id, razorpay_payment_link_status } = req.query;
-   
-      // Fetch order using razorpayLinkId
-      const order = await Order.findOne({ razorpayLinkId: razorpay_payment_link_id });
-   
-      if (!order) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-   
-      if (razorpay_payment_link_status === "paid") {
-        order.paymentStatus = "Success";
-        order.status = "DELIVERED";
-        order.deliveryStatus = "DELIVERED";
-        order.cashReceived = false; // because it's online
-        await order.save();
-   
-        return res.status(200).json({
-          message: "Online payment verified and order delivered",
-          data: {
-            orderId: order.orderId,
-            paymentId: razorpay_payment_id,
-            yourEarning: `₹${(order.totalAmount * 0.10).toFixed(0)}`
-          }
-        });
-      }
-   
-      return res.status(400).json({ message: "Payment not completed yet" });
-   
-    } catch (error) {
-      console.error("Payment verification error:", error);
-      return res.status(500).json({ message: "Server error during payment verification" });
-    }
-  };
 
 
 
 
 
-//get seller orders
+
+// get seller orders
+
+// exports.verifyOnlinePayment = catchAsyncError(async (req, res) => {
+//   try {
+//     const { razorpay_payment_link_id, razorpay_payment_id, razorpay_signature } = req.query;
+
+//     // 🔒 Step 1: Validate input
+//     if (!razorpay_payment_link_id || !razorpay_payment_id || !razorpay_signature) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Missing required Razorpay parameters",
+//       });
+//     }
+
+//     // 🔍 Step 2: Find the order by payment link ID
+//     const order = await Order.findOne({ razorpayLinkId: razorpay_payment_link_id });
+
+//     if (!order) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Order not found",
+//       });
+//     }
+
+//     // 🔐 Step 3: Verify Razorpay Signature
+//     const expectedSignature = crypto
+//       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "gTPUidHTVpnljtGjLZHUcFV4")
+//       .update(`${razorpay_payment_link_id}|${razorpay_payment_id}`)
+//       .digest("hex");
+
+//     if (expectedSignature !== razorpay_signature) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Signature mismatch. Payment verification failed.",
+//       });
+//     }
+
+//     // ✅ Step 4: Update order status
+//     order.status = "PAID";
+//     order.paymentStatus = "Success";
+//     order.razorpayPaymentId = razorpay_payment_id;
+//     order.razorpayLinkStatus = "paid";
+//     order.deliveryStatus = "DELIVERED";
+//     order.cashReceived = false;
+//     await order.save();
+
+//     // ✅ Step 5: Respond with success
+//     return res.status(200).json({
+//       success: true,
+//       message: "Payment verified successfully",
+//       data: {
+//         orderId: order._id,
+//         orderNumber: order.orderNumber,
+//         paymentId: razorpay_payment_id,
+//         yourEarning: `₹${(order.totalAmount * 0.10).toFixed(0)}`
+//       }
+//     });
+//   } catch (error) {
+//     console.error("Payment Verification Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server error during payment verification",
+//     });
+//   }
+// });
+
 
 exports.getAllSellerOrders = async (req, res) => {
   try {
@@ -949,7 +1200,7 @@ exports.getAllSellerOrders = async (req, res) => {
 
       return {
         orderId: order._id,
-        orderNumber : order.orderNumber,
+        orderNumber: order.orderNumber,
         status: order.status,
         paymentMethod: order.paymentMethod,
         razorpayLinkStatus: order.razorpayLinkStatus,
@@ -959,15 +1210,15 @@ exports.getAllSellerOrders = async (req, res) => {
         deliveryAddress: order.address,
         createdAt: order.createdAt,
         customer: {
-            orderDate: order.createdAt,
-          name: order.userId.name,
-          email: order.userId.email,
-          phoneNumber: order.userId.phoneNumber,
-          address: order.userId.address,
-          ordertype: order.deliveryType
+          orderDate: order.createdAt,
+          name: order.userId?.name || null,
+          email: order.userId?.email || null,
+          phoneNumber: order.userId?.phoneNumber || null,
+          address: order?.address || null,
+          ordertype: order.deliveryType || null
         },
         payment: {
-            razorpayLinkId: order.razorpayLinkId,
+          razorpayLinkId: order.razorpayLinkId,
           method: order.paymentMethod,
           date: order.createdAt,
           status: order.razorpayLinkStatus,
@@ -996,6 +1247,8 @@ exports.getAllSellerOrders = async (req, res) => {
   }
 };
 
+
+
 // controllers/orderController.js
 
 exports.acceptOrder = async (req, res) => {
@@ -1020,7 +1273,7 @@ exports.acceptOrder = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized access to this order" });
     }
 
-    if (order.status !== "PENDING") {
+    if (order.status !== "PAID") {
       return res.status(400).json({ success: false, message: `Order already ${order.status}` });
     }
 
@@ -1028,7 +1281,7 @@ exports.acceptOrder = async (req, res) => {
     order.status = "ACCEPTED";
     order.acceptedAt = new Date();
     await order.save();
-     const deliveredItems = sellerItems
+    const deliveredItems = sellerItems
       .map(item => `${item.productId.productName} (x${item.quantity})`)
       .join(", ");
 
@@ -1100,7 +1353,7 @@ exports.getMyNotifications = async (req, res) => {
 
     const notifications = await Notification.find({
       user: userId,
-    //   userType: userType
+      //   userType: userType
     }).sort({ createdAt: -1 }); // latest first
 
     res.status(200).json({

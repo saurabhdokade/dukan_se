@@ -42,7 +42,7 @@ router.get(
 
 router.get("/getallshop",getAllSellers)
 router.post("/send-otp", sendOtpToMobile);
-router.post("/verify-otp", verifyOtpAndLogin);
+router.post("/verify-otp/seller", verifyOtpAndLogin);
 router.put(
   "/kyc/upload",
   isAuthenticatedUser,

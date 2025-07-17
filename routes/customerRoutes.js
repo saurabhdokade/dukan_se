@@ -3,17 +3,25 @@ const router = express.Router();
 const {
   registerCustomer,
   loginUser,
-  updateUserProfile
+  addCustomerAddress,
+  updateUserProfile,
+  removeAddress,
+  getAllAddresses,
+  verifyCustomerOtp
 } = require("../controller/customerController"); // adjust the path if needed
 
-const { isAuthenticatedUser } = require("../middlewares/auth"); // Middleware to protect routes
+const { isAuthenticatedUser,isAuthenticatedCustomer } = require("../middlewares/auth"); // Middleware to protect routes
 const upload = require("../utils/multer"); // Middleware for file upload, e.g., Multer with S3
 
 
 router.post("/customer/signup", registerCustomer);
+router.post("/verify-otp", verifyCustomerOtp);
+router.post("/add-address", isAuthenticatedCustomer, addCustomerAddress);
+router.delete("/remove-address/:addressId", isAuthenticatedCustomer,removeAddress);
+router.get("/get-all-addresses", isAuthenticatedCustomer, getAllAddresses);
 
 router.post("/login", loginUser); // Assuming user is authenticated
 
-router.put("/update/:id", isAuthenticatedUser, upload.single("userProfile"), updateUserProfile);
+router.put("/update/:id", isAuthenticatedCustomer, upload.single("userProfile"), updateUserProfile);
 
 module.exports = router;
