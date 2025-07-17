@@ -1375,6 +1375,15 @@ exports.createOffer = catchAsyncErrors(async (req, res) => {
     bannerImage
   });
 
+  // ✅ Create Notification
+  await Notification.create({
+    user: userId,
+    userType: userType,
+    title: "New Offer Created",
+    message: `An offer has been created: "${offerText}" with ${discountRate ? discountRate + '% discount' : '₹' + discountAmount + ' off'}.`,
+    type: "SYSTEM"
+  });
+
   res.status(201).json({
     success: true,
     message: "Offer created successfully",
@@ -2627,50 +2636,189 @@ function isShopOpen(openingTime, closingTime) {
 }
 
 // ✅ Get all shops with filters
+// exports.getAllShopswithfilters = async (req, res) => {
+//   try {
+//     const userId = req.customer.id;
+//     const {
+//       approvedOnly,
+//       minRating,
+//       sortBy,
+//       pickOnly,
+//       ratings,
+//       pickupAndDelivery
+//     } = req.query;
+
+//     let customerLat = null;
+//     let customerLng = null;
+//     let useDistance = false;
+
+//     // ✅ Step 1: Get customer location for distance sorting
+//     if (sortBy === "distance") {
+//       const customer = await Customer.findById(userId);
+//       if (
+//         !customer ||
+//         !customer.location?.coordinates?.lat ||
+//         !customer.location?.coordinates?.lng
+//       ) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Customer location required for sorting by distance."
+//         });
+//       }
+//       customerLat = customer.location.coordinates.lat;
+//       customerLng = customer.location.coordinates.lng;
+//       useDistance = true;
+//     }
+
+//     // ✅ Step 2: Build MongoDB query
+//     const query = { role: "USER" };
+
+//     if (approvedOnly === "true") {
+//       query.status = "approved";
+//     }
+
+//     if (pickOnly === "true") {
+//       query.pickup = true;
+//     }else{
+//       if (pickOnly === "false") {
+//       query.pickup = false;
+//     }
+//     }
+
+
+//     if (pickupAndDelivery === "true") {
+//       query.pickup = false; // only delivery shops (pickup disabled)
+//     }
+
+//     // ✅ Step 3: Fetch shops
+//     const shops = await Shop.find(query);
+
+//     // ✅ Step 4: Format and filter results
+//     let results = shops
+//       .map((shop) => {
+//         let distance = null;
+
+//         if (
+//           useDistance &&
+//           shop.location?.coordinates?.lat != null &&
+//           shop.location?.coordinates?.lng != null &&
+//           customerLat != null &&
+//           customerLng != null
+//         ) {
+//           distance = getDistanceFromLatLonInKm(
+//             customerLat,
+//             customerLng,
+//             shop.location.coordinates.lat,
+//             shop.location.coordinates.lng
+//           );
+//         }
+
+//         const isOpen = isShopOpen(
+//           shop.shopTime?.openingTime,
+//           shop.shopTime?.closingTime
+//         );
+
+//         return {
+//           shopName: shop.shopName,
+//           image: shop.image,
+//           averageRating: shop.averageRating || 0,
+//           totalReviews: shop.totalReviews || 0,
+//           shopTime: shop.shopTime || {},
+//           status: isOpen ? "open" : "closed",
+//           distance: distance != null ? `${distance.toFixed(2)} km` : null,
+//           rawDistance: distance != null ? distance : null
+//         };
+//       })
+//       .filter((shop) => {
+//         if (minRating && shop.averageRating < Number(minRating)) {
+//           return false;
+//         }
+//         return true;
+//       });
+
+//     // ✅ Step 5: Sort shops
+//     if (ratings !== undefined) {
+//       results.sort((a, b) => b.averageRating - a.averageRating);
+//     } else if (useDistance) {
+//       results.sort((a, b) => a.rawDistance - b.rawDistance);
+//     } else {
+//       results.sort((a, b) => b.averageRating - a.averageRating);
+//     }
+
+//     // ✅ Step 6: Respond
+//     return res.status(200).json({
+//       success: true,
+//       count: results.length,
+//       shops: results
+//     });
+
+//   } catch (error) {
+//     console.error("Get All Shops Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server error"
+//     });
+//   }
+// };
+
 exports.getAllShopswithfilters = async (req, res) => {
   try {
     const userId = req.customer.id;
-
-    const { approvedOnly, minRating, sortBy } = req.query;
+    const {
+      approvedOnly,
+      minRating,
+      sortBy,
+      pickOnly,
+      ratings,
+      pickupAndDelivery
+    } = req.query;
 
     let customerLat = null;
     let customerLng = null;
-    let useDistance = false;
 
-    if (sortBy === "distance") {
-      const customer = await Customer.findById(userId);
-      if (
-        !customer ||
-        !customer.location?.coordinates?.lat ||
-        !customer.location?.coordinates?.lng
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: "Customer location required for sorting by distance."
-        });
-      }
-      customerLat = customer.location.coordinates.lat;
-      customerLng = customer.location.coordinates.lng;
-      useDistance = true;
+    // ✅ Step 1: Get customer location (always required now for distance)
+    const customer = await Customer.findById(userId);
+    if (
+      !customer ||
+      !customer.location?.coordinates?.lat ||
+      !customer.location?.coordinates?.lng
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer location required to get shop distances."
+      });
     }
+    customerLat = customer.location.coordinates.lat;
+    customerLng = customer.location.coordinates.lng;
 
+    // ✅ Step 2: Build MongoDB query
     const query = { role: "USER" };
+
     if (approvedOnly === "true") {
       query.status = "approved";
     }
 
+    if (pickOnly === "true") {
+      query.pickup = true;
+    } else if (pickOnly === "false") {
+      query.pickup = false;
+    }
+
+    if (pickupAndDelivery === "true") {
+      query.pickup = false;
+    }
+
+    // ✅ Step 3: Fetch shops
     const shops = await Shop.find(query);
 
-    const results = shops
+    // ✅ Step 4: Format and filter results
+    let results = shops
       .map((shop) => {
         let distance = null;
 
         if (
-          useDistance &&
           shop.location?.coordinates?.lat != null &&
-          shop.location?.coordinates?.lng != null &&
-          customerLat != null &&
-          customerLng != null
+          shop.location?.coordinates?.lng != null
         ) {
           distance = getDistanceFromLatLonInKm(
             customerLat,
@@ -2692,8 +2840,8 @@ exports.getAllShopswithfilters = async (req, res) => {
           totalReviews: shop.totalReviews || 0,
           shopTime: shop.shopTime || {},
           status: isOpen ? "open" : "closed",
-          distance: distance != null ? `${distance.toFixed(2)} km` : null,
-          rawDistance: distance != null ? distance : null
+          distance: `${distance?.toFixed(2) || "0.00"} km`,
+          rawDistance: distance ?? 0
         };
       })
       .filter((shop) => {
@@ -2703,13 +2851,16 @@ exports.getAllShopswithfilters = async (req, res) => {
         return true;
       });
 
-    // ✅ Sorting
-    if (useDistance) {
+    // ✅ Step 5: Sort shops
+    if (ratings !== undefined) {
+      results.sort((a, b) => b.averageRating - a.averageRating);
+    } else if (sortBy === "distance") {
       results.sort((a, b) => a.rawDistance - b.rawDistance);
     } else {
       results.sort((a, b) => b.averageRating - a.averageRating);
     }
 
+    // ✅ Step 6: Respond
     return res.status(200).json({
       success: true,
       count: results.length,
@@ -2724,7 +2875,3 @@ exports.getAllShopswithfilters = async (req, res) => {
     });
   }
 };
-
-
-
-

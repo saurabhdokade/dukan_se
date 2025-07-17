@@ -479,6 +479,44 @@ exports.getAllSellers = catchAsyncErrors(async (req, res, next) => {
 });
 
 //Update UserProfile
+// exports.updateShopProfile = catchAsyncErrors(async (req, res, next) => {
+//   const {
+//     shopName,
+//     gstinNumber,
+//     ownerName,
+//     email,
+//     mobileNumber,
+//     shopTime,
+//     location
+//   } = req.body;
+
+//   const shop = await User.findById(req.params.id); // assuming User is your Shop model
+//   if (!shop) {
+//     return next(new ErrorHander("Shop not found", 404));
+//   }
+
+//   if (shopName) shop.shopName = shopName;
+//   if (gstinNumber) shop.gstinNumber = gstinNumber;
+//   if (ownerName) shop.ownerName = ownerName;
+//   if (email) shop.email = email;
+//   if (mobileNumber) shop.mobileNumber = mobileNumber;
+//   if (shopTime) shop.shopTime = shopTime;
+//   if (location) shop.location = location;
+
+//   if (req.file && req.file.path) {
+//     shop.image = req.file.path;
+//   }
+
+//   await shop.save();
+
+//   res.status(200).json({
+//     success: true,
+//     message: "Shop profile updated successfully!",
+//     shop
+//   });
+// });
+
+
 exports.updateShopProfile = catchAsyncErrors(async (req, res, next) => {
   const {
     shopName,
@@ -487,7 +525,8 @@ exports.updateShopProfile = catchAsyncErrors(async (req, res, next) => {
     email,
     mobileNumber,
     shopTime,
-    location
+    location,
+    pickup  // <-- added this
   } = req.body;
 
   const shop = await User.findById(req.params.id); // assuming User is your Shop model
@@ -502,6 +541,10 @@ exports.updateShopProfile = catchAsyncErrors(async (req, res, next) => {
   if (mobileNumber) shop.mobileNumber = mobileNumber;
   if (shopTime) shop.shopTime = shopTime;
   if (location) shop.location = location;
+
+  if (typeof pickup !== 'undefined') {
+    shop.pickup = pickup;  // <-- add pickup field update
+  }
 
   if (req.file && req.file.path) {
     shop.image = req.file.path;
@@ -998,7 +1041,7 @@ exports.getSellerMonthlyOrderReport = async (req, res) => {
 //   }
 // };
 
-exports.getSellerWalletSummary = async (req, res) => {
+exports.getSellerWalletSummarythru = async (req, res) => {
   try {
     const sellerId = req.user.id;
 
@@ -1042,6 +1085,62 @@ exports.getSellerWalletSummary = async (req, res) => {
       referralEarnings: referralEarnings.toFixed(2),
       productSalesEarnings: walletBalance.toFixed(2),
       upcomingPaymentsAmount: upcomingPaymentsAmount.toFixed(2)
+    });
+
+  } catch (error) {
+    console.error("Wallet summary error:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+exports.getSellerWalletSummary = async (req, res) => {
+  try {
+    const sellerId = req.user.id;
+
+    // 🟢 Fetch all relevant orders
+    const orders = await Order.find({
+      "items.productId": { $exists: true },
+      status: { $in: ["DELIVERED", "PENDING", "PLACED", "ACCEPTED", "PACKED"] }
+    }).populate("items.productId");
+
+    let walletBalance = 0;               // Total from DELIVERED items
+    let upcomingPaymentsAmount = 0;      // Total from non-DELIVERED items
+    let commissionEarned = 0;            // 10% on all items (regardless of status)
+
+    for (const order of orders) {
+      const sellerItems = order.items.filter(
+        item => item.productId?.createdBy?.toString() === sellerId.toString()
+      );
+
+      if (sellerItems.length === 0) continue;
+
+      for (const item of sellerItems) {
+        const itemTotal = item.quantity * item.price;
+        commissionEarned += itemTotal * 0.1; // 10% commission
+
+        if (order.status === "DELIVERED") {
+          walletBalance += itemTotal;
+        } else {
+          upcomingPaymentsAmount += itemTotal;
+        }
+      }
+    }
+
+    // 🟢 Get total referral earnings
+    const referralTxns = await ReferralTransaction.find({ referrer: sellerId });
+    const referralEarnings = referralTxns.reduce((sum, tx) => sum + tx.amount, 0);
+
+    // 🟢 Total balance = sales + referral
+    const totalWalletBalance = walletBalance + referralEarnings;
+
+    // ✅ Return final response
+    return res.status(200).json({
+      success: true,
+      walletBalance: totalWalletBalance.toFixed(2),          // Total (sales + referral)
+      productSalesEarnings: walletBalance.toFixed(2),        // Sales from delivered
+      referralEarnings: referralEarnings.toFixed(2),         // Referral total
+      upcomingPaymentsAmount: upcomingPaymentsAmount.toFixed(2), // Pending orders
+      commissionEarned: commissionEarned.toFixed(2)          // 10% commission
     });
 
   } catch (error) {
@@ -1142,5 +1241,50 @@ exports.getLastTransaction = async (req, res) => {
   } catch (error) {
     console.error("Error fetching last transaction:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.getSellerCommissionHistory = async (req, res) => {
+  try {
+    const sellerId = req.user.id;
+
+    // 🟢 Get all orders where products exist and have valid statuses
+    const orders = await Order.find({
+      "items.productId": { $exists: true },
+      status: { $in: ["DELIVERED", "PENDING", "PLACED", "ACCEPTED", "PACKED"] }
+    }).populate("items.productId");
+
+    const commissionHistory = [];
+
+    for (const order of orders) {
+      const sellerItems = order.items.filter(
+        item => item.productId?.createdBy?.toString() === sellerId.toString()
+      );
+
+      if (sellerItems.length === 0) continue;
+
+      for (const item of sellerItems) {
+        const itemAmount = item.quantity * item.price;
+        const commissionAmount = itemAmount * 0.1;
+
+        commissionHistory.push({
+          orderId: order._id,
+          date: order.createdAt,
+          status: order.status,
+          itemAmount: itemAmount.toFixed(2),
+          commissionAmount: commissionAmount.toFixed(2)
+        });
+      }
+    }
+
+    // ✅ Return final response
+    return res.status(200).json({
+      success: true,
+      commissionHistory
+    });
+
+  } catch (error) {
+    console.error("Commission history error:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };

@@ -8,6 +8,7 @@ const {
   uploadKYCImages,
   getKYCByUser,
   createOrUpdateBankDetails,
+  getSellerCommissionHistory,
   getBankDetails,
   rateShop,
   getAllSellers,
@@ -62,7 +63,7 @@ router.put(
 
 router.get("/bank-details", isAuthenticatedUser, getBankDetails);
 router.get("/:userId", isAuthenticatedUser, getKYCByUser);
-router.put("/update/:id", upload.single("image"), updateShopProfile);
+router.put("/update/shopprofile/:id", upload.single("image"), updateShopProfile);
 
 
 //rating
@@ -79,5 +80,5 @@ router.get("/seller/monthly-order-report", isAuthenticatedUser, getSellerMonthly
 router.get("/seller/wallet",isAuthenticatedUser, getSellerWalletSummary);
 router.get("/seller/upcoming-payouts", isAuthenticatedUser, getUpcomingPayouts);
 router.get("/seller/last-transaction", isAuthenticatedUser, getLastTransaction);
-
+router.get("/seller/commission", isAuthenticatedUser, getSellerCommissionHistory);
 module.exports = router;

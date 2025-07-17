@@ -69,11 +69,10 @@ const uploadFields = multer.fields([
 router.post("/register", registerAdmin);
 router.post("/admin/login", loginAdmin);
 router.get("/admin/me", isAuthenticatedAdmin, getAdminProfile);
-router.patch("/admin/update/profile", isAuthenticatedAdmin, updateAdminProfile);
+router.patch("/admin/update/profile",  isAuthenticatedAdmin, multer.single("userProfile"), updateAdminProfile);
 
 
 //customer
-
 router.get("/admin/customers", getAllCustomers);
 router.get("/customer/orders/:id", getAllCustomerOrders);
 router.get("/order/details/:orderId", isAuthenticatedAdmin, getOrderDetails);

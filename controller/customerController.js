@@ -188,35 +188,89 @@ exports.verifyCustomerOtp = async (req, res, next) => {
 };
  
  
+// exports.addCustomerAddress = async (req, res, next) => {
+//   try {
+//     const customerId = req.customer._id; // Make sure user is authenticated and attached to req.user
+//     const newAddress = req.body.address;
+ 
+//     if (!newAddress) {
+//       return res.status(400).json({ success: false, message: "Address is required" });
+//     }
+ 
+//     const customer = await User.findById(customerId);
+//     if (!customer) {
+//       return res.status(404).json({ success: false, message: "Customer not found" });
+//     }
+ 
+//     customer.addresses.push(newAddress);
+//     await customer.save();
+ 
+//     return res.status(200).json({
+//       success: true,
+//       message: "Address added successfully",
+//       addresses: customer.addresses,
+//     });
+//   } catch (err) {
+//     console.error("Add Address Error:", err);
+//     return res.status(500).json({ success: false, message: "Server Error" });
+//   }
+// };
+ 
 exports.addCustomerAddress = async (req, res, next) => {
   try {
-    const customerId = req.customer._id; // Make sure user is authenticated and attached to req.user
-    const newAddress = req.body.address;
- 
-    if (!newAddress) {
-      return res.status(400).json({ success: false, message: "Address is required" });
+    const customerId = req.customer._id;
+    const {
+      houseNumber,
+      roadName,
+      landMark,
+      city,
+      state,
+      pinCode,
+      useCurrentLocation = false,
+      coordinates,
+      formattedAddress
+    } = req.body;
+
+    if (!houseNumber || !roadName || !city || !state || !pinCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required address fields"
+      });
     }
- 
+
     const customer = await User.findById(customerId);
     if (!customer) {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
- 
-    customer.addresses.push(newAddress);
+
+    const newAddress = {
+      useCurrentLocation,
+      coordinates,
+      formattedAddress,
+      address: {
+        houseNumber,
+        roadName,
+        landMark,
+        city,
+        state,
+        pinCode
+      }
+    };
+
+    customer.addresses.push(newAddress); // addressSchema is embedded in locationSchema
     await customer.save();
- 
+
     return res.status(200).json({
       success: true,
       message: "Address added successfully",
-      addresses: customer.addresses,
+      addresses: customer.addresses
     });
   } catch (err) {
     console.error("Add Address Error:", err);
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
- 
- 
+
 exports.removeAddress = async (req, res) => {
   try {
     const customerId = req.customer.id; // Or use req.params.id if admin
@@ -295,34 +349,108 @@ exports.loginUser = catchAsyncErrors(async (req, res, next) => {
 });
  
  
+// exports.updateUserProfile = catchAsyncErrors(async (req, res, next) => {
+//     const {
+//         name,
+//         email,
+//         phoneNumber,
+//         dateOfBirth,
+//         location
+//     } = req.body;
+ 
+//     const user = await User.findById(req.params.id);
+//     if (!user) {
+//         return next(new ErrorHander("User not found", 404));
+//     }
+//     if (name) user.name = name;
+//     if (dateOfBirth) user.dateOfBirth = dateOfBirth;
+//     if (location) user.location = location;
+//     if (phoneNumber) user.phoneNumber = phoneNumber;
+//     if (email) user.email = email;
+//     if (req.file) {
+//         user.userProfile = req.file.path; // S3 puts the file URL in .location
+//     }
+//     // Save the updated user
+//     await user.save();
+ 
+//     res.status(200).json({
+//         success: true,
+//         message: "User details updated successfully!",
+//         user,
+//     });
+// });
+ 
 exports.updateUserProfile = catchAsyncErrors(async (req, res, next) => {
+  const {
+    name,
+    email,
+    phoneNumber,
+    dateOfBirth,
+    location,
+    newAddress // 👈 Expected to be passed as full object
+  } = req.body;
+
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    return next(new ErrorHander("User not found", 404));
+  }
+
+  // Basic info
+  if (name) user.name = name;
+  if (dateOfBirth) user.dateOfBirth = dateOfBirth;
+  if (location) user.location = location;
+  if (phoneNumber) user.phoneNumber = phoneNumber;
+  if (email) user.email = email;
+
+  // Profile picture
+  if (req.file) {
+    user.userProfile = req.file.path;
+  }
+
+  // ✅ Save new address if provided
+  if (newAddress) {
     const {
-        name,
-        email,
-        phoneNumber,
-        dateOfBirth,
-        location
-    } = req.body;
- 
-    const user = await User.findById(req.params.id);
-    if (!user) {
-        return next(new ErrorHander("User not found", 404));
+      houseNumber,
+      roadName,
+      landMark,
+      city,
+      state,
+      pinCode,
+      useCurrentLocation = false,
+      coordinates,
+      formattedAddress
+    } = newAddress;
+
+    // Validate fields
+    if (!houseNumber || !roadName || !city || !state || !pinCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required address fields"
+      });
     }
-    if (name) user.name = name;
-    if (dateOfBirth) user.dateOfBirth = dateOfBirth;
-    if (location) user.location = location;
-    if (phoneNumber) user.phoneNumber = phoneNumber;
-    if (email) user.email = email;
-    if (req.file) {
-        user.userProfile = req.file.path; // S3 puts the file URL in .location
-    }
-    // Save the updated user
-    await user.save();
- 
-    res.status(200).json({
-        success: true,
-        message: "User details updated successfully!",
-        user,
-    });
+
+    const formattedNewAddress = {
+      useCurrentLocation,
+      coordinates,
+      formattedAddress,
+      address: {
+        houseNumber,
+        roadName,
+        landMark,
+        city,
+        state,
+        pinCode
+      }
+    };
+
+    user.addresses.push(formattedNewAddress); // 👈 This will save multiple addresses
+  }
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "User profile updated successfully",
+    user
+  });
 });
- 

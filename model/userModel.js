@@ -45,7 +45,7 @@ const shopSchema = new mongoose.Schema(
       unique: false,
       validate: [validator.isEmail, "Please enter a valid email"]
     },
-     gullakPoints: {
+    gullakPoints: {
       type: Number,
       default: 0
     },
@@ -53,14 +53,18 @@ const shopSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
-     gullakUsed: {
-        type: Number,
-        default: 0
+    gullakUsed: {
+      type: Number,
+      default: 0
     },
     status: {
       type: String,
-      enum: ["active", "inactive", "suspended","approved","rejected"],
+      enum: ["active", "inactive", "suspended", "approved", "rejected"],
       default: "active"
+    },
+    pickup: {
+      type: Boolean,
+      default: false
     },
     mobileNumber: {
       type: String,

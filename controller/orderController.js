@@ -1168,7 +1168,7 @@ exports.cancelOrder = async (req, res) => {
 // });
 
 
-exports.getAllSellerOrders = async (req, res) => {
+exports.getAllSellerOrderssunday = async (req, res) => {
   try {
     const sellerId = req.user.id;
 
@@ -1246,6 +1246,89 @@ exports.getAllSellerOrders = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+exports.getAllSellerOrders = async (req, res) => {
+  try {
+    const sellerId = req.user.id;
+
+    // Step 1: Get seller's products
+    const sellerProducts = await Product.find({ createdBy: sellerId }).select("_id");
+    const sellerProductIds = sellerProducts.map(p => p._id);
+
+    if (sellerProductIds.length === 0) {
+      return res.status(200).json({ success: true, message: "No orders found", orders: [] });
+    }
+
+    // Step 2: Find orders with seller's products + payment filters
+    const orders = await Order.find({
+      "items.productId": { $in: sellerProductIds },
+      razorpayLinkStatus: "paid",            // 🟢 Only where Razorpay link is paid
+      status: ["PAID"],                        // 🟢 Order is marked as PAID
+      paymentStatus: "Success"               // 🟢 Payment succeeded
+    })
+      .populate("userId", "name email phoneNumber address")
+      .populate("items.productId", "productName productPhotoFront productPhotoBack price")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!orders || orders.length === 0) {
+      return res.status(200).json({ success: true, message: "No orders found", orders: [] });
+    }
+
+    // Step 3: Filter each order to keep only seller's products
+    const filteredOrders = orders.map(order => {
+      const sellerItems = order.items.filter(item =>
+        sellerProductIds.some(id => id.toString() === item.productId._id.toString())
+      );
+
+      return {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentMethod: order.paymentMethod,
+        razorpayLinkStatus: order.razorpayLinkStatus,
+        totalAmount: order.totalAmount,
+        finalAmount: order.finalAmount,
+        deliveryType: order.deliveryType,
+        deliveryAddress: order.address,
+        createdAt: order.createdAt,
+        customer: {
+          orderDate: order.createdAt,
+          name: order.userId?.name || null,
+          email: order.userId?.email || null,
+          phoneNumber: order.userId?.phoneNumber || null,
+          address: order?.address || null,
+          ordertype: order.deliveryType || null
+        },
+        payment: {
+          razorpayLinkId: order.razorpayLinkId,
+          method: order.paymentMethod,
+          date: order.createdAt,
+          status: order.razorpayLinkStatus,
+          totalAmount: order.totalAmount,
+          finalAmount: order.finalAmount
+        },
+        products: sellerItems.map(item => ({
+          name: item.productId.productName,
+          quantity: item.quantity,
+          price: item.price,
+          productPhotoFront: item.productId.productPhotoFront || "",
+          productPhotoBack: item.productId.productPhotoBack || ""
+        }))
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      totalOrders: filteredOrders.length,
+      orders: filteredOrders
+    });
+
+  } catch (error) {
+    console.error("Seller orders error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 
 
 
