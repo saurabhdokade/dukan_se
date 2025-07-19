@@ -454,3 +454,25 @@ exports.updateUserProfile = catchAsyncErrors(async (req, res, next) => {
     user
   });
 });
+
+
+exports.getCustomerProfile = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select("-otp -otpExpire"); // Exclude OTP fields
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Customer not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Customer profile fetched successfully",
+      data: user
+    });
+  } catch (error) {
+    console.error("Profile Fetch Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

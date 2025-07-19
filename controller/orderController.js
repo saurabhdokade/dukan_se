@@ -1428,6 +1428,88 @@ exports.acceptOrder = async (req, res) => {
   }
 };
 
+exports.getAcceptedOrdersList = async (req, res) => {
+  try {
+    const sellerId = req.user.id;
+
+    // Find products created by this seller
+    const sellerProducts = await Product.find({ createdBy: sellerId }).select("_id");
+    const sellerProductIds = sellerProducts.map(p => p._id);
+
+    if (sellerProductIds.length === 0) {
+      return res.status(200).json({ success: true, message: "No accepted orders found", orders: [] });
+    }
+
+    // Find orders with seller's products and status ACCEPTED
+    const orders = await Order.find({
+      "items.productId": { $in: sellerProductIds },
+      status: "ACCEPTED"
+    })
+      .populate("userId", "name email phoneNumber address")
+      .populate("items.productId", "productName productPhotoFront productPhotoBack price createdBy")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!orders || orders.length === 0) {
+      return res.status(200).json({ success: true, message: "No accepted orders found", orders: [] });
+    }
+
+    // Filter each order’s items to only include this seller's products
+    const filteredOrders = orders.map(order => {
+      const sellerItems = order.items.filter(item =>
+        sellerProductIds.some(id => id.toString() === item.productId._id.toString())
+      );
+
+      return {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        acceptedAt: order.acceptedAt,
+        paymentMethod: order.paymentMethod,
+        razorpayLinkStatus: order.razorpayLinkStatus,
+        totalAmount: order.totalAmount,
+        finalAmount: order.finalAmount,
+        deliveryType: order.deliveryType,
+        deliveryAddress: order.address,
+        createdAt: order.createdAt,
+        customer: {
+          orderDate: order.createdAt,
+          name: order.userId?.name || null,
+          email: order.userId?.email || null,
+          phoneNumber: order.userId?.phoneNumber || null,
+          address: order.userId?.address || null,
+          ordertype: order.deliveryType || null
+        },
+        payment: {
+          razorpayLinkId: order.razorpayLinkId,
+          method: order.paymentMethod,
+          date: order.createdAt,
+          status: order.razorpayLinkStatus,
+          totalAmount: order.totalAmount,
+          finalAmount: order.finalAmount
+        },
+        products: sellerItems.map(item => ({
+          name: item.productId.productName,
+          quantity: item.quantity,
+          price: item.price,
+          productPhotoFront: item.productId.productPhotoFront || "",
+          productPhotoBack: item.productId.productPhotoBack || ""
+        }))
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      totalOrders: filteredOrders.length,
+      orders: filteredOrders
+    });
+
+  } catch (error) {
+    console.error("Accepted orders list error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 // Get all notifications for logged-in user
 exports.getMyNotifications = async (req, res) => {
   try {
@@ -1823,6 +1905,89 @@ exports.cancelOrderBySeller = async (req, res) => {
   }
 };
 
+
+exports.getSellerCancelledOrdersList = async (req, res) => {
+  try {
+    const sellerId = req.user.id;
+
+    // Find products created by this seller
+    const sellerProducts = await Product.find({ createdBy: sellerId }).select("_id");
+    const sellerProductIds = sellerProducts.map(p => p._id);
+
+    if (sellerProductIds.length === 0) {
+      return res.status(200).json({ success: true, message: "No cancelled orders found", orders: [] });
+    }
+
+    // Find orders with seller's products and status CANCELLED
+    const orders = await Order.find({
+      "items.productId": { $in: sellerProductIds },
+      status: "CANCELLED"
+    })
+      .populate("userId", "name email phoneNumber address")
+      .populate("items.productId", "productName productPhotoFront productPhotoBack price createdBy")
+      .sort({ cancelDate: -1 })
+      .lean();
+
+    if (!orders || orders.length === 0) {
+      return res.status(200).json({ success: true, message: "No cancelled orders found", orders: [] });
+    }
+
+    // Filter each order’s items to only include this seller's products
+    const filteredOrders = orders.map(order => {
+      const sellerItems = order.items.filter(item =>
+        sellerProductIds.some(id => id.toString() === item.productId._id.toString())
+      );
+
+      return {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        cancelReason: order.cancelReason,
+        cancelDate: order.cancelDate,
+        paymentMethod: order.paymentMethod,
+        razorpayLinkStatus: order.razorpayLinkStatus,
+        totalAmount: order.totalAmount,
+        finalAmount: order.finalAmount,
+        deliveryType: order.deliveryType,
+        deliveryAddress: order.address,
+        createdAt: order.createdAt,
+        customer: {
+          orderDate: order.createdAt,
+          name: order.userId?.name || null,
+          email: order.userId?.email || null,
+          phoneNumber: order.userId?.phoneNumber || null,
+          address: order.userId?.address || null,
+          ordertype: order.deliveryType || null
+        },
+        payment: {
+          razorpayLinkId: order.razorpayLinkId,
+          method: order.paymentMethod,
+          date: order.createdAt,
+          status: order.razorpayLinkStatus,
+          totalAmount: order.totalAmount,
+          finalAmount: order.finalAmount
+        },
+        products: sellerItems.map(item => ({
+          name: item.productId.productName,
+          quantity: item.quantity,
+          price: item.price,
+          productPhotoFront: item.productId.productPhotoFront || "",
+          productPhotoBack: item.productId.productPhotoBack || ""
+        }))
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      totalOrders: filteredOrders.length,
+      orders: filteredOrders
+    });
+
+  } catch (error) {
+    console.error("Cancelled orders list error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 //get user orders
 

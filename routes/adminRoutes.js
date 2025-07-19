@@ -103,12 +103,12 @@ router.get("/payment/:orderId", getPaymentDetails);
 //setting 
 // Terms
 router.post("/createTerms", createTerms);
-router.get("/getTerms", getTerms);
+router.get("/get/getTerms", getTerms);
 router.put("/updateTerms", updateTerms);
  
 // Privacy
 router.post("/createPrivacy", createPrivacy);
-router.get("/getPrivacy", getPrivacy);
+router.get("/get/getPrivacy", getPrivacy);
 router.put("/updatePrivacy", updatePrivacy);
 
 //notification

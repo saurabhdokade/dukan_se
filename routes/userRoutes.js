@@ -61,7 +61,7 @@ router.put(
   createOrUpdateBankDetails
 );
 
-router.get("/bank-details", isAuthenticatedUser, getBankDetails);
+router.get("/get/bank-details", isAuthenticatedUser, getBankDetails);
 router.get("/:userId", isAuthenticatedUser, getKYCByUser);
 router.put("/update/shopprofile/:id", upload.single("image"), updateShopProfile);
 

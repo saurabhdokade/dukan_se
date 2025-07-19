@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { isAuthenticatedCustomer,isAuthenticatedUser } = require("../middlewares/auth");
-const { buyFromCartAndPaySeller,cancelOrder,getGullakDashboard,verifyOnlinePayment,getEarnedGullakCoins,getRedeemedGullakCoins,getRedeemedGullakHistory,getMyReferrals,shareReferralCode,getReferralInfo,getMyNotifications,getSellerNotifications,getOrderDetails,getAllSellerOrders,getMyOrdersWithShopDetails,acceptOrder,markOrderPacked,verifyOtpAndCompleteOrder,cancelOrderBySeller } = require("../controller/orderController");
+const { buyFromCartAndPaySeller,cancelOrder,getSellerCancelledOrdersList,getAcceptedOrdersList,getGullakDashboard,verifyOnlinePayment,getEarnedGullakCoins,getRedeemedGullakCoins,getRedeemedGullakHistory,getMyReferrals,shareReferralCode,getReferralInfo,getMyNotifications,getSellerNotifications,getOrderDetails,getAllSellerOrders,getMyOrdersWithShopDetails,acceptOrder,markOrderPacked,verifyOtpAndCompleteOrder,cancelOrderBySeller } = require("../controller/orderController");
 
 router.post("/order/buy-now", isAuthenticatedCustomer, buyFromCartAndPaySeller);
 router.get("/referral-info", isAuthenticatedCustomer, getReferralInfo);
@@ -9,7 +9,6 @@ router.get("/referral-info", isAuthenticatedCustomer, getReferralInfo);
 router.put("/cancel/:orderId", isAuthenticatedCustomer, cancelOrder);
 
 router.get("/payment/verify", verifyOnlinePayment);
-
 
 //refer
 router.get("/share", isAuthenticatedCustomer, shareReferralCode);
@@ -29,12 +28,12 @@ router.get("/gullak/dashboard", isAuthenticatedCustomer, getGullakDashboard);
 router.get("/seller/orders", isAuthenticatedUser, getAllSellerOrders);
 
 router.put("/seller/order/:orderId/accept", isAuthenticatedUser, acceptOrder);
-
+router.get("/seller/orders/accepted", isAuthenticatedUser, getAcceptedOrdersList);
 
 router.put("/seller/order/:orderId/mark-packed", isAuthenticatedUser, markOrderPacked);
 router.post("/order/verify-otp/:orderId", isAuthenticatedUser, verifyOtpAndCompleteOrder);
 router.put("/seller/orders/:orderId/cancel", isAuthenticatedUser, cancelOrderBySeller);
-
+router.get("/seller/orders/cancelled", isAuthenticatedUser, getSellerCancelledOrdersList);
 
 //get user orders
 

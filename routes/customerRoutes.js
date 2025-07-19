@@ -7,7 +7,8 @@ const {
   updateUserProfile,
   removeAddress,
   getAllAddresses,
-  verifyCustomerOtp
+  verifyCustomerOtp,
+  getCustomerProfile
 } = require("../controller/customerController"); // adjust the path if needed
 
 const { isAuthenticatedUser,isAuthenticatedCustomer } = require("../middlewares/auth"); // Middleware to protect routes
@@ -23,5 +24,6 @@ router.get("/get-all-addresses", isAuthenticatedCustomer, getAllAddresses);
 router.post("/login", loginUser); // Assuming user is authenticated
 
 router.put("/update/:id", isAuthenticatedCustomer, upload.single("userProfile"), updateUserProfile);
+router.get("/profile/:userId", isAuthenticatedCustomer,getCustomerProfile);
 
 module.exports = router;
