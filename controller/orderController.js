@@ -1511,15 +1511,46 @@ exports.getAcceptedOrdersList = async (req, res) => {
 };
 
 // Get all notifications for logged-in user
+// exports.getMyNotifications = async (req, res) => {
+//   try {
+//     const userId = req.customer.id;        // From auth middleware
+//     // const userType = req.user.role === "CUSTOMER" ? "CustomerAuth" : "UsersAuth";
+
+//     const notifications = await Notification.find({
+//       user: userId,
+//       //   userType: userType
+//     }).sort({ createdAt: -1 }); // latest first
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Notifications fetched successfully",
+//       count: notifications.length,
+//       notifications
+//     });
+//   } catch (error) {
+//     console.error("Get notifications error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch notifications"
+//     });
+//   }
+// };
+
 exports.getMyNotifications = async (req, res) => {
   try {
-    const userId = req.customer.id;        // From auth middleware
-    // const userType = req.user.role === "CUSTOMER" ? "CustomerAuth" : "UsersAuth";
+    const userId = req.customer.id; // From auth middleware
+    const { type } = req.query;
 
-    const notifications = await Notification.find({
-      user: userId,
-      //   userType: userType
-    }).sort({ createdAt: -1 }); // latest first
+    const query = { user: userId };
+
+    // Optional type filter
+    const validTypes = ["ORDER", "PAYMENT", "COMPLAINT", "GULLAK", "CANCEL", "DELIVERY", "SYSTEM"];
+    if (type && validTypes.includes(type)) {
+      query.type = type;
+    }
+
+    const notifications = await Notification.find(query)
+    // .sort({ createdAt: -1 }); // latest first
 
     res.status(200).json({
       success: true,
