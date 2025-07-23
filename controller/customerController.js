@@ -7,7 +7,8 @@ const {sendOTP} = require("../utils/twilio");
 const KYC = require("../model/kycModel");
 const BankDetails = require("../model/bankDetailsModel");
 const sendEmail = require("../utils/sendEmail");
- 
+ const axios = require("axios");
+
 // exports.registerCustomer = catchAsyncErrors(async (req, res, next) => {
 //     const { name, email, phoneNumber, dateOfBirth, address, location,password } = req.body;
  
@@ -154,6 +155,7 @@ exports.registerCustomer = async (req, res, next) => {
   }
 };
  
+
  
 exports.verifyCustomerOtp = async (req, res, next) => {
   try {
@@ -220,18 +222,10 @@ exports.addCustomerAddress = async (req, res, next) => {
   try {
     const customerId = req.customer._id;
     const {
-      houseNumber,
-      roadName,
-      landMark,
-      city,
-      state,
-      pinCode,
-      useCurrentLocation = false,
-      coordinates,
       formattedAddress
     } = req.body;
 
-    if (!houseNumber || !roadName || !city || !state || !pinCode) {
+    if (!formattedAddress) {
       return res.status(400).json({
         success: false,
         message: "Please provide all required address fields"
@@ -244,17 +238,7 @@ exports.addCustomerAddress = async (req, res, next) => {
     }
 
     const newAddress = {
-      useCurrentLocation,
-      coordinates,
       formattedAddress,
-      address: {
-        houseNumber,
-        roadName,
-        landMark,
-        city,
-        state,
-        pinCode
-      }
     };
 
     customer.addresses.push(newAddress); // addressSchema is embedded in locationSchema
@@ -262,8 +246,13 @@ exports.addCustomerAddress = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
+      newAddress,
       message: "Address added successfully",
-      addresses: customer.addresses
+      addresses: customer.addresses?.map(addr => ({
+        id: addr._id,
+        formattedAddress: addr.formattedAddress
+      })),
+
     });
   } catch (err) {
     console.error("Add Address Error:", err);
