@@ -6,12 +6,57 @@ const Customer = require("../model/customerModel")
 const Admin  = require("../model/adminModel");
 
 
-exports.isAuthenticatedUser = catchAsyncErrors(async (req, res, next) => {
-  const token = req.cookies.token;
+// exports.isAuthenticatedUser = catchAsyncErrors(async (req, res, next) => {
+  // const token = req.cookies.token;
 
-  if (!token) {
+  // if (!token) {
+  //   return next(new ErrorHander("Please login to access this resource", 401));
+  // }
+
+  // const decodedData = jwt.verify(token, process.env.JWT_SECRET);
+  // req.user = await User.findById(decodedData.id);
+
+  // next();
+// });
+// exports.isAuthenticatedAdmin = catchAsyncErrors(async (req, res, next) => {
+//   const token = req.cookies.token;
+
+//   if (!token) {
+//     return next(new ErrorHander("Please login to access this resource", 401));
+//   }
+
+//   const decodedData = jwt.verify(token, process.env.JWT_SECRET);
+//   req.admin = await Admin.findById(decodedData.id);
+
+//   next();
+// });
+
+// exports.isAuthenticatedCustomer = catchAsyncErrors(async (req, res, next) => {
+//   const token = req.cookies.token;
+
+//   if (!token) {
+//     return next(new ErrorHander("Please login to access this resource", 401));
+//   }
+
+//   const decodedData = jwt.verify(token, process.env.JWT_SECRET);
+//   req.customer = await Customer.findById(decodedData.id);
+
+//   next();
+// });
+
+
+
+
+//header
+
+exports.isAuthenticatedUser = catchAsyncErrors(async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return next(new ErrorHander("Please login to access this resource", 401));
   }
+
+  const token = authHeader.split(" ")[1];
 
   const decodedData = jwt.verify(token, process.env.JWT_SECRET);
   req.user = await User.findById(decodedData.id);
@@ -19,11 +64,13 @@ exports.isAuthenticatedUser = catchAsyncErrors(async (req, res, next) => {
   next();
 });
 exports.isAuthenticatedAdmin = catchAsyncErrors(async (req, res, next) => {
-  const token = req.cookies.token;
+  const authHeader = req.headers.authorization;
 
-  if (!token) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return next(new ErrorHander("Please login to access this resource", 401));
   }
+
+  const token = authHeader.split(" ")[1];
 
   const decodedData = jwt.verify(token, process.env.JWT_SECRET);
   req.admin = await Admin.findById(decodedData.id);
@@ -31,12 +78,15 @@ exports.isAuthenticatedAdmin = catchAsyncErrors(async (req, res, next) => {
   next();
 });
 
-exports.isAuthenticatedCustomer = catchAsyncErrors(async (req, res, next) => {
-  const token = req.cookies.token;
 
-  if (!token) {
+exports.isAuthenticatedCustomer = catchAsyncErrors(async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return next(new ErrorHander("Please login to access this resource", 401));
   }
+
+  const token = authHeader.split(" ")[1];
 
   const decodedData = jwt.verify(token, process.env.JWT_SECRET);
   req.customer = await Customer.findById(decodedData.id);
@@ -44,25 +94,6 @@ exports.isAuthenticatedCustomer = catchAsyncErrors(async (req, res, next) => {
   next();
 });
 
-
-
-
-//header
-
-// exports.isAuthenticatedUser = catchAsyncErrors(async (req, res, next) => {
-//   const authHeader = req.headers.authorization;
-
-//   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-//     return next(new ErrorHander("Please login to access this resource", 401));
-//   }
-
-//   const token = authHeader.split(" ")[1];
-
-//   const decodedData = jwt.verify(token, process.env.JWT_SECRET);
-//   req.user = await User.findById(decodedData.id);
-
-//   next();
-// });
 
 
 
